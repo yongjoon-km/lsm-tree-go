@@ -8,6 +8,7 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
-	tree := core.LSMTree{}
+	tree := core.NewLSMTree()
 	tree.Insert(1, "2")
+	tree.Insert(3, "3")
 }
