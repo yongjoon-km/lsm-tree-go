@@ -28,12 +28,21 @@ func (tree *LSMTree) Insert(key int, value string) {
 	tree.memBuffer[key] = value
 }
 
-func (tree *LSMTree) Find(key int) {
-	fmt.Println("Can't find", key)
+func (tree *LSMTree) Find(key int) (string, bool) {
+	value, found := tree.memBuffer[key]
+	if found {
+		return value, true
+	} else {
+		return tree.findKeyInDisk(key)
+	}
 }
 
 func (tree *LSMTree) Delete(key int) {
 	fmt.Println("Can't delete", key)
+}
+
+func (tree *LSMTree) PrintMemBuffer() {
+	fmt.Println(tree.memBuffer)
 }
 
 func (tree *LSMTree) flushBufferToDisk() {
@@ -96,6 +105,113 @@ func (tree *LSMTree) writeBufferToDisk() error {
 	return nil
 }
 
+func (tree *LSMTree) clearBuffer() {
+	tree.memBuffer = make(map[int]string)
+}
+
+func (tree *LSMTree) findKeyInDisk(key int) (string, bool) {
+	file, err := os.Open("data.txt")
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return "", false
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+
+	for {
+		dataInDisk := getDataInDisk(reader, tree.capacity)
+		if len(dataInDisk) == 0 {
+			break
+		}
+		value, found := binarySearch(dataInDisk, key)
+		if found {
+			return value, true
+		}
+	}
+
+	return "", false
+}
+
+func binarySearch(dataInDisk []string, key int) (string, bool) {
+
+	start := 0
+	end := len(dataInDisk) - 1
+
+	for start <= end {
+		mid := (start + end) / 2
+		midKey, err := strconv.Atoi(strings.Split(dataInDisk[mid], ":")[0])
+		if err != nil {
+			fmt.Println("Invalid data", err)
+			return "", false
+		}
+		if midKey == key {
+			return strings.Split(dataInDisk[midKey], ":")[1], true
+		} else if midKey > key {
+			end = mid - 1
+		} else {
+			start = mid + 1
+		}
+	}
+
+	return "", false
+}
+
+func getSortedKeys(buffer map[int]string) []int {
+	keys := make([]int, 0, len(buffer))
+	for k := range buffer {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	return keys
+}
+
+func getDataInDisk(reader *bufio.Reader, size int) []string {
+	dataInDisk := make([]string, 0)
+	for i := 0; i < size; i++ {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			fmt.Println("Error:", err)
+			return nil
+		}
+		if line == "" {
+			break
+		}
+		dataInDisk = append(dataInDisk, strings.Split(line, "\n")[0])
+	}
+	return dataInDisk
+}
+
+func getMergedData(dataListInOriginDisk []string, memBuffer *map[int]string) ([]string, error) {
+	mergedData := make([]string, 0)
+	sortedKeys := getSortedKeys(*memBuffer)
+	originDataIndex := 0
+	memBufferIndex := 0
+	for memBufferIndex < len(sortedKeys) && originDataIndex < len(dataListInOriginDisk) {
+		dataIndexKey, err := strconv.Atoi(strings.Split(dataListInOriginDisk[originDataIndex], ":")[0])
+		bufferKey := sortedKeys[memBufferIndex]
+		if err != nil {
+			return nil, err
+		}
+		if dataIndexKey > bufferKey {
+			mergedData = append(mergedData, strconv.Itoa(bufferKey)+":"+(*memBuffer)[bufferKey])
+			delete(*memBuffer, bufferKey)
+			memBufferIndex++
+		} else {
+
+			mergedData = append(mergedData, dataListInOriginDisk[originDataIndex])
+			originDataIndex++
+		}
+	}
+	for ; originDataIndex < len(dataListInOriginDisk); originDataIndex++ {
+		mergedData = append(mergedData, dataListInOriginDisk[originDataIndex])
+	}
+	return mergedData, nil
+}
+
 func replaceTempToOriginFile() error {
 	// replace merged_data.txt -> data.txt
 	if err := os.Remove("data.txt"); err != nil {
@@ -130,63 +246,4 @@ func getOriginAndTempFile() (*os.File, *os.File, error) {
 		return nil, nil, err
 	}
 	return originFile, tempFile, nil
-}
-
-func getMergedData(dataListInOriginDisk []string, memBuffer *map[int]string) ([]string, error) {
-	mergedData := make([]string, 0)
-	sortedKeys := getSortedKeys(*memBuffer)
-	originDataIndex := 0
-	memBufferIndex := 0
-	for memBufferIndex < len(sortedKeys) && originDataIndex < len(dataListInOriginDisk) {
-		dataIndexKey, err := strconv.Atoi(strings.Split(dataListInOriginDisk[originDataIndex], ":")[0])
-		bufferKey := sortedKeys[memBufferIndex]
-		if err != nil {
-			return nil, err
-		}
-		if dataIndexKey > bufferKey {
-			mergedData = append(mergedData, strconv.Itoa(bufferKey)+":"+(*memBuffer)[bufferKey])
-			delete(*memBuffer, bufferKey)
-			memBufferIndex++
-		} else {
-
-			mergedData = append(mergedData, dataListInOriginDisk[originDataIndex])
-			originDataIndex++
-		}
-	}
-	for ; originDataIndex < len(dataListInOriginDisk); originDataIndex++ {
-		mergedData = append(mergedData, dataListInOriginDisk[originDataIndex])
-	}
-	return mergedData, nil
-}
-
-func getDataInDisk(reader *bufio.Reader, size int) []string {
-	dataInDisk := make([]string, 0)
-	for i := 0; i < size; i++ {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			fmt.Println("Error:", err)
-			return nil
-		}
-		if line == "" {
-			break
-		}
-		dataInDisk = append(dataInDisk, strings.Split(line, "\n")[0])
-	}
-	return dataInDisk
-}
-
-func (tree *LSMTree) clearBuffer() {
-	tree.memBuffer = make(map[int]string)
-}
-
-func getSortedKeys(buffer map[int]string) []int {
-	keys := make([]int, 0, len(buffer))
-	for k := range buffer {
-		keys = append(keys, k)
-	}
-	sort.Ints(keys)
-	return keys
 }
