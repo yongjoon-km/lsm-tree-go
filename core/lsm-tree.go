@@ -31,6 +31,9 @@ func (tree *LSMTree) Insert(key int, value string) {
 func (tree *LSMTree) Find(key int) (string, bool) {
 	value, found := tree.memBuffer[key]
 	if found {
+		if value == "" {
+			return "", false
+		}
 		return value, true
 	} else {
 		return tree.findKeyInDisk(key)
@@ -38,7 +41,10 @@ func (tree *LSMTree) Find(key int) (string, bool) {
 }
 
 func (tree *LSMTree) Delete(key int) {
-	fmt.Println("Can't delete", key)
+	tree.memBuffer[key] = ""
+	if len(tree.memBuffer) >= tree.capacity {
+		tree.flushBufferToDisk()
+	}
 }
 
 func (tree *LSMTree) PrintMemBuffer() {
@@ -196,12 +202,20 @@ func getMergedData(dataListInOriginDisk []string, memBuffer *map[int]string) ([]
 		if err != nil {
 			return nil, err
 		}
-		if dataIndexKey > bufferKey {
-			mergedData = append(mergedData, strconv.Itoa(bufferKey)+":"+(*memBuffer)[bufferKey])
+		if dataIndexKey == bufferKey {
+			if (*memBuffer)[bufferKey] != "" {
+				mergedData = append(mergedData, strconv.Itoa(bufferKey)+":"+(*memBuffer)[bufferKey])
+			}
+			delete(*memBuffer, bufferKey)
+			originDataIndex++
+			memBufferIndex++
+		} else if dataIndexKey > bufferKey {
+			if (*memBuffer)[bufferKey] != "" {
+				mergedData = append(mergedData, strconv.Itoa(bufferKey)+":"+(*memBuffer)[bufferKey])
+			}
 			delete(*memBuffer, bufferKey)
 			memBufferIndex++
 		} else {
-
 			mergedData = append(mergedData, dataListInOriginDisk[originDataIndex])
 			originDataIndex++
 		}
