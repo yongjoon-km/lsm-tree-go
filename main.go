@@ -18,7 +18,7 @@ func main() {
 	}
 	database.PrintBuffer()
 	database.Insert(98, "special value")
-	key := 98
+	key := 999
 	value, found := database.Find(key)
 	fmt.Println("key: " + strconv.FormatInt(int64(key), 10) + " value: " + value + " found: " + strconv.FormatBool(found))
 	database.Delete(5)

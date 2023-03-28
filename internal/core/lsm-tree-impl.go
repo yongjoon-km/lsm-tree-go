@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -75,7 +76,51 @@ func (tree *LSMTree) clearBuffer() {
 }
 
 func (tree *LSMTree) findKeyInDisk(key int) (string, bool) {
-	file, err := os.Open("data.txt")
+
+	// The data.txt will be deprecated and find in each level file.
+	value, found := findKeyInDiskFile(key, "data.txt", tree.capacity)
+	if found {
+		return value, found
+	}
+
+	// Find from C1 level disk
+	files := getFilesInLevel(C1)
+	for _, file := range files {
+		value, found := findKeyInDiskFile(key, file, tree.capacity)
+		if found {
+			return value, found
+		}
+	}
+	return "", false
+}
+
+func getFilesInLevel(level Level) []string {
+	result := make([]string, 0)
+	prefix := getFilePrefixPerLevel(level)
+	suffix := ".txt"
+	dir := "."
+
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		fmt.Println("Error reading directory:", err)
+		return make([]string, 0)
+	}
+
+	for _, file := range files {
+		if !file.IsDir() && strings.HasPrefix(file.Name(), prefix) && strings.HasSuffix(file.Name(), suffix) {
+			absPath, err := filepath.Abs(filepath.Join(dir, file.Name()))
+			if err != nil {
+				fmt.Println("Error getting absolute path:", err)
+				continue
+			}
+			result = append(result, absPath)
+		}
+	}
+	return result
+}
+
+func findKeyInDiskFile(key int, filename string, pagesize int) (string, bool) {
+	file, err := os.Open(filename)
 	if err != nil {
 		fmt.Println("Error opening file:", err)
 		return "", false
@@ -85,7 +130,7 @@ func (tree *LSMTree) findKeyInDisk(key int) (string, bool) {
 	reader := bufio.NewReader(file)
 
 	for {
-		dataInDisk := getDataInDisk(reader, tree.capacity)
+		dataInDisk := getDataInDisk(reader, pagesize)
 		if len(dataInDisk) == 0 {
 			break
 		}
@@ -111,7 +156,7 @@ func binarySearch(dataInDisk []string, key int) (string, bool) {
 			return "", false
 		}
 		if midKey == key {
-			return strings.Split(dataInDisk[midKey], ":")[1], true
+			return strings.Split(dataInDisk[mid], ":")[1], true
 		} else if midKey > key {
 			end = mid - 1
 		} else {
