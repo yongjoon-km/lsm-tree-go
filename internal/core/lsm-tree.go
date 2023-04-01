@@ -11,7 +11,7 @@ type LSMTree struct {
 
 func NewLSMTree() *LSMTree {
 	tree := &LSMTree{memBuffer: make(map[int]string)}
-	tree.capacity = 10
+	tree.capacity = 50
 	return tree
 }
 

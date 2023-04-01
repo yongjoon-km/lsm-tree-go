@@ -4,19 +4,39 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func (tree *LSMTree) flushBufferToDisk() {
-	err := tree.writeBufferToDisk()
+
+	dir := "./"                               // Use the default temporary directory
+	prefix := getFilePrefixPerLevel(C1) + "_" // Prefix for the temporary file
+
+	tempFile, err := ioutil.TempFile(dir, prefix)
 	if err != nil {
-		return
+		fmt.Println(err)
 	}
 
+	// Close the file when done.
+	defer func() {
+		if err := tempFile.Close(); err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	writer := bufio.NewWriter(tempFile)
+	sortedKeys := getSortedKeys(tree.memBuffer)
+
+	for _, key := range sortedKeys {
+		writer.WriteString(strconv.Itoa(key) + ":" + tree.memBuffer[key] + "\n")
+	}
+	writer.Flush()
 	tree.clearBuffer()
 }
 
@@ -76,28 +96,28 @@ func (tree *LSMTree) clearBuffer() {
 }
 
 func (tree *LSMTree) findKeyInDisk(key int) (string, bool) {
-
-	// The data.txt will be deprecated and find in each level file.
-	value, found := findKeyInDiskFile(key, "data.txt", tree.capacity)
-	if found {
-		return value, found
-	}
-
 	// Find from C1 level disk
 	files := getFilesInLevel(C1)
 	for _, file := range files {
 		value, found := findKeyInDiskFile(key, file, tree.capacity)
 		if found {
+			if value == "" {
+				return value, false
+			}
 			return value, found
 		}
 	}
 	return "", false
 }
 
+type FileType struct {
+	Path         string
+	CreationTime time.Time
+}
+
 func getFilesInLevel(level Level) []string {
 	result := make([]string, 0)
 	prefix := getFilePrefixPerLevel(level)
-	suffix := ".txt"
 	dir := "."
 
 	files, err := os.ReadDir(dir)
@@ -106,16 +126,35 @@ func getFilesInLevel(level Level) []string {
 		return make([]string, 0)
 	}
 
+	filteredFiles := make([]FileType, 0)
 	for _, file := range files {
-		if !file.IsDir() && strings.HasPrefix(file.Name(), prefix) && strings.HasSuffix(file.Name(), suffix) {
+		if !file.IsDir() && strings.HasPrefix(file.Name(), prefix) {
 			absPath, err := filepath.Abs(filepath.Join(dir, file.Name()))
 			if err != nil {
 				fmt.Println("Error getting absolute path:", err)
 				continue
 			}
-			result = append(result, absPath)
+			info, err := file.Info()
+			if err != nil {
+				fmt.Println("Error getting file information:", err)
+				continue
+			}
+			filteredFiles = append(filteredFiles, FileType{absPath, info.ModTime()})
 		}
 	}
+
+	sort.Slice(filteredFiles, func(i, j int) bool {
+		return filteredFiles[i].CreationTime.After(filteredFiles[j].CreationTime)
+	})
+
+	for _, fileInfo := range filteredFiles {
+		if err != nil {
+			fmt.Println("Error getting absolute path:", err)
+			continue
+		}
+		result = append(result, fileInfo.Path)
+	}
+
 	return result
 }
 
