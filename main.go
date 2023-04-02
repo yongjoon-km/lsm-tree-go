@@ -8,6 +8,19 @@ import (
 )
 
 func main() {
+	// testOld()
+
+	dm := core.DiskManager{}
+	mb, err := core.CreateNewMemoryBuffer(50, &dm)
+	if err != nil {
+		panic("error occurred")
+	}
+	for i := 0; i <= 100; i++ {
+		mb.Insert(fmt.Sprintf("%010d", i), "value")
+	}
+}
+
+func testOld() {
 	var database core.Database
 	database = core.NewLSMTree()
 	for i := 0; i <= 100; i += 1 {
