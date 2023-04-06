@@ -1,4 +1,4 @@
-package common
+package disk
 
 type Level int8
 
@@ -8,7 +8,7 @@ const (
 	C3
 )
 
-func GetFilePrefixPerLevel(level Level) string {
+func getFilePrefixPerLevel(level Level) string {
 	switch level {
 	case C1:
 		return "C1"

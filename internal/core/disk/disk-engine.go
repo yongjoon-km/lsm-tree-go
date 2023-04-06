@@ -26,7 +26,7 @@ func CreateDiskEngine(capcity int) *DiskEngine {
 }
 
 func (diskEngine *DiskEngine) Find(key string) (*common.Data, error) {
-	files := getFilesInLevel(common.C1)
+	files := getFilesInLevel(C1)
 	for _, file := range files {
 		value, found := findKeyInDiskFile(key, file, diskEngine.capacity)
 		if found {
@@ -39,9 +39,9 @@ func (diskEngine *DiskEngine) Find(key string) (*common.Data, error) {
 	return nil, fmt.Errorf("Can't find the key %s", key)
 }
 
-func getFilesInLevel(level common.Level) []string {
+func getFilesInLevel(level Level) []string {
 	result := make([]string, 0)
-	prefix := common.GetFilePrefixPerLevel(level)
+	prefix := getFilePrefixPerLevel(level)
 	dir := "."
 
 	files, err := os.ReadDir(dir)

@@ -12,7 +12,7 @@ type DiskManager struct {
 }
 
 func (diskManager *DiskManager) CreateSSTable(dataBuffer map[string]common.Data) error {
-	tempFile, err := ioutil.TempFile("./", common.GetFilePrefixPerLevel(common.C1)+"_")
+	tempFile, err := ioutil.TempFile("./", getFilePrefixPerLevel(C1)+"_")
 	if err != nil {
 		return err
 	}
