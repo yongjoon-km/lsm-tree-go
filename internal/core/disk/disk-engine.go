@@ -1,62 +1,19 @@
-package core
+package disk
 
 import (
 	"bufio"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"lsm-tree-go/internal/core/common"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 )
 
-func (tree *LSMTree) flushBufferToDisk() {
-
-	dir := "./"                               // Use the default temporary directory
-	prefix := getFilePrefixPerLevel(C1) + "_" // Prefix for the temporary file
-
-	tempFile, err := ioutil.TempFile(dir, prefix)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	// Close the file when done.
-	defer func() {
-		if err := tempFile.Close(); err != nil {
-			fmt.Println(err)
-		}
-	}()
-
-	writer := bufio.NewWriter(tempFile)
-	sortedKeys := getSortedKeys(tree.memBuffer)
-
-	for _, key := range sortedKeys {
-		writer.WriteString(strconv.Itoa(key) + ":" + tree.memBuffer[key] + "\n")
-	}
-	writer.Flush()
-	tree.clearBuffer()
-}
-
-func (tree *LSMTree) clearBuffer() {
-	tree.memBuffer = make(map[int]string)
-}
-
-func (tree *LSMTree) findKeyInDisk(key int) (string, bool) {
-	// Find from C1 level disk
-	files := getFilesInLevel(C1)
-	for _, file := range files {
-		value, found := findKeyInDiskFile(key, file, tree.capacity)
-		if found {
-			if value == "" {
-				return value, false
-			}
-			return value, found
-		}
-	}
-	return "", false
+type DiskEngine struct {
+	capacity int
 }
 
 type FileType struct {
@@ -64,9 +21,27 @@ type FileType struct {
 	CreationTime time.Time
 }
 
-func getFilesInLevel(level Level) []string {
+func CreateDiskEngine(capcity int) *DiskEngine {
+	return &DiskEngine{capacity: capcity}
+}
+
+func (diskEngine *DiskEngine) Find(key string) (*common.Data, error) {
+	files := getFilesInLevel(common.C1)
+	for _, file := range files {
+		value, found := findKeyInDiskFile(key, file, diskEngine.capacity)
+		if found {
+			if value == "" {
+				return nil, fmt.Errorf("Can't find the key %s", key)
+			}
+			return &common.Data{Key: key, Value: value}, nil
+		}
+	}
+	return nil, fmt.Errorf("Can't find the key %s", key)
+}
+
+func getFilesInLevel(level common.Level) []string {
 	result := make([]string, 0)
-	prefix := getFilePrefixPerLevel(level)
+	prefix := common.GetFilePrefixPerLevel(level)
 	dir := "."
 
 	files, err := os.ReadDir(dir)
@@ -107,7 +82,7 @@ func getFilesInLevel(level Level) []string {
 	return result
 }
 
-func findKeyInDiskFile(key int, filename string, pagesize int) (string, bool) {
+func findKeyInDiskFile(key string, filename string, pagesize int) (string, bool) {
 	file, err := os.Open(filename)
 	if err != nil {
 		fmt.Println("Error opening file:", err)
@@ -131,39 +106,6 @@ func findKeyInDiskFile(key int, filename string, pagesize int) (string, bool) {
 	return "", false
 }
 
-func binarySearch(dataInDisk []string, key int) (string, bool) {
-
-	start := 0
-	end := len(dataInDisk) - 1
-
-	for start <= end {
-		mid := (start + end) / 2
-		midKey, err := strconv.Atoi(strings.Split(dataInDisk[mid], ":")[0])
-		if err != nil {
-			fmt.Println("Invalid data", err)
-			return "", false
-		}
-		if midKey == key {
-			return strings.Split(dataInDisk[mid], ":")[1], true
-		} else if midKey > key {
-			end = mid - 1
-		} else {
-			start = mid + 1
-		}
-	}
-
-	return "", false
-}
-
-func getSortedKeys(buffer map[int]string) []int {
-	keys := make([]int, 0, len(buffer))
-	for k := range buffer {
-		keys = append(keys, k)
-	}
-	sort.Ints(keys)
-	return keys
-}
-
 func getDataInDisk(reader *bufio.Reader, size int) []string {
 	dataInDisk := make([]string, 0)
 	for i := 0; i < size; i++ {
@@ -181,4 +123,24 @@ func getDataInDisk(reader *bufio.Reader, size int) []string {
 		dataInDisk = append(dataInDisk, strings.Split(line, "\n")[0])
 	}
 	return dataInDisk
+}
+
+func binarySearch(dataInDisk []string, key string) (string, bool) {
+
+	start := 0
+	end := len(dataInDisk) - 1
+
+	for start <= end {
+		mid := (start + end) / 2
+		midKey := strings.Split(dataInDisk[mid], ":")[0]
+		if midKey == key {
+			return strings.Split(dataInDisk[mid], ":")[1], true
+		} else if midKey > key {
+			end = mid - 1
+		} else {
+			start = mid + 1
+		}
+	}
+
+	return "", false
 }

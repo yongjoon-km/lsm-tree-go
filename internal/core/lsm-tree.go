@@ -2,45 +2,53 @@ package core
 
 import (
 	"fmt"
+	"lsm-tree-go/internal/core/disk"
+	"lsm-tree-go/internal/core/memory"
 )
 
 type LSMTree struct {
-	memBuffer map[int]string
-	capacity  int
+	memBuffer    map[int]string
+	memoryBuffer memory.MemoryBuffer
+	diskEngine   disk.DiskEngine
 }
 
-func NewLSMTree() *LSMTree {
+func NewLSMTree(capacity int) *LSMTree {
 	tree := &LSMTree{memBuffer: make(map[int]string)}
-	tree.capacity = 50
+	diskManager := disk.DiskManager{}
+	memoryBuffer, err := memory.CreateNewMemoryBuffer(capacity, &diskManager)
+	if err != nil {
+		fmt.Println("Error occurred while creating NewLSMTree")
+	}
+	tree.memoryBuffer = *memoryBuffer
+	tree.diskEngine = *disk.CreateDiskEngine(capacity)
 	return tree
 }
 
-func (tree *LSMTree) Insert(key int, value string) {
-	if len(tree.memBuffer) >= tree.capacity {
-		tree.flushBufferToDisk()
-	}
-	tree.memBuffer[key] = value
+func (tree *LSMTree) Insert(key string, value string) {
+	tree.memoryBuffer.Insert(key, value)
 }
 
-func (tree *LSMTree) Find(key int) (string, bool) {
-	value, found := tree.memBuffer[key]
-	if found {
-		if value == "" {
+func (tree *LSMTree) Find(key string) (string, bool) {
+	data, err := tree.memoryBuffer.Find(key)
+	if err != nil {
+		data, err := tree.diskEngine.Find(key)
+		if err != nil {
+			return "", false
+		} else {
+			return (*data).Value, true
+		}
+	} else {
+		if (*data).Value == "" {
 			return "", false
 		}
-		return value, true
-	} else {
-		return tree.findKeyInDisk(key)
+		return (*data).Value, true
 	}
 }
 
-func (tree *LSMTree) Delete(key int) {
-	tree.memBuffer[key] = ""
-	if len(tree.memBuffer) >= tree.capacity {
-		tree.flushBufferToDisk()
-	}
+func (tree *LSMTree) Delete(key string) {
+	tree.memoryBuffer.Delete(key)
 }
 
 func (tree *LSMTree) PrintBuffer() {
-	fmt.Println(tree.memBuffer)
+	fmt.Println(tree.memoryBuffer)
 }

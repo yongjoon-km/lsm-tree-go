@@ -1,4 +1,4 @@
-package core
+package common
 
 type Level int8
 
@@ -8,7 +8,7 @@ const (
 	C3
 )
 
-func getFilePrefixPerLevel(level Level) string {
+func GetFilePrefixPerLevel(level Level) string {
 	switch level {
 	case C1:
 		return "C1"
