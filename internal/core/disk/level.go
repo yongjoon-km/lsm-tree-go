@@ -19,3 +19,14 @@ func getFilePrefixPerLevel(level Level) string {
 	}
 	return "C9"
 }
+
+func GetPrefixOfLevel(level Level) string {
+	return getFilePrefixPerLevel(level)
+}
+
+func GetNextLevel(level Level) Level {
+	if level == C3 {
+		return C3
+	}
+	return level + 1
+}

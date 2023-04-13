@@ -4,6 +4,7 @@ package compaction
 import (
 	"bufio"
 	"fmt"
+	"lsm-tree-go/internal/core/disk"
 	"os"
 	"strings"
 	"testing"
@@ -33,7 +34,7 @@ func TestCompact(t *testing.T) {
 	file2.Seek(0, 0)
 
 	// Run Compact function
-	err = Compact(file1, file2)
+	err = Compact(file1, file2, disk.C2)
 	if err != nil {
 		t.Fatal(err)
 	}
