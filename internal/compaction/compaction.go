@@ -30,7 +30,21 @@ func Compact(file1 *os.File, file2 *os.File, nextLevel disk.Level) error {
 	line2, err2 := reader2.ReadString('\n')
 
 	for err1 == nil && err2 == nil {
-		if strings.Compare(line1, line2) <= 0 {
+		key1, value1 := splitToKeyAndValue(line1)
+		key2, value2 := splitToKeyAndValue(line2)
+		print("value test", key1, value1, key2, value2)
+		if value1 == "" || value2 == "" {
+			if value1 == "" {
+				line1, err1 = reader1.ReadString('\n')
+			}
+			if value2 == "" {
+				line2, err2 = reader2.ReadString('\n')
+			}
+			continue
+		}
+		if strings.Compare(key1, key2) == 0 {
+			line2, err2 = reader2.ReadString('\n')
+		} else if strings.Compare(key1, key2) <= 0 {
 			writer.WriteString(line1)
 			line1, err1 = reader1.ReadString('\n')
 		} else {
@@ -57,6 +71,12 @@ func Compact(file1 *os.File, file2 *os.File, nextLevel disk.Level) error {
 	}
 
 	return nil
+}
+
+func splitToKeyAndValue(line string) (string, string) {
+	removeReturn := strings.Split(line, "\n")[0]
+	tokens := strings.Split(removeReturn, ":")
+	return tokens[0], tokens[1]
 }
 
 func ProcessCompact(level disk.Level) {
